@@ -20,22 +20,26 @@ from parutils import pprint
 
 #=============================================================================
 # Main
-
 comm = MPI.COMM_WORLD
-
-
-
 in_fname = sys.argv[-2]
 out_fname = sys.argv[-1]
 
 #in_fname = 'L1448_13CO.fits.gz'
-images = pyfits.getdata(in_fname)[145:245, :, :]#h5in.root.images
+left = 145
+right = 245
+rem = (right - left + 1) % comm.size
+if (rem != 0):
+    right += comm.size - rem
+
+images = pyfits.getdata(in_fname)[left:right, :, :]#h5in.root.images
 image_count, height, width = images.shape
 image_count = min(image_count, 200)
 
-if (image_count % comm.size != 0):
-    pprint("image_count % comm.size != 0")
-    sys.exit(1)
+# rem = image_count % comm.size
+# if (image_count % comm.size != 0):
+#     extra_col = comm.size - rem
+#     pprint("image_count % comm.size != 0")
+#     sys.exit(1)
 
 pprint("============================================================================")
 pprint(" Running %d parallel MPI processes" % comm.size)
