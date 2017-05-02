@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 """
 
@@ -15,7 +15,7 @@ import tables
 import numpy as np
 from numpy.fft import fft2, ifft2
 from mpi4py import MPI
-from bernstein.utils import autotable
+#from bernstein.utils import autotable
 from parutils import pprint
 
 #=============================================================================
@@ -23,21 +23,19 @@ from parutils import pprint
 
 comm = MPI.COMM_WORLD
 
+
+
 in_fname = sys.argv[-2]
 out_fname = sys.argv[-1]
 
-try:
-    h5in  = tables.openFile(in_fname, 'r')
-except:
-    pprint("Error: Could not open file %s" % in_fname)
-    exit(1)
-
-#h5out = autotable.AutoTable(out_fname)
-    
-#
-images = h5in.root.images
+#in_fname = 'L1448_13CO.fits.gz'
+images = pyfits.getdata(in_fname)[145:245, :, :]#h5in.root.images
 image_count, height, width = images.shape
 image_count = min(image_count, 200)
+
+if (image_count % comm.size != 0):
+    pprint("image_count % comm.size != 0")
+    sys.exit(1)
 
 pprint("============================================================================")
 pprint(" Running %d parallel MPI processes" % comm.size)
@@ -51,11 +49,15 @@ kernel_ = np.zeros((height, width))
 # rank 0 needs buffer space to gather data
 if comm.rank == 0:
     gbuf = np.empty( (comm.size, height, width) )
+    origin_header = pyfits.open(in_fname)[0].header
+    new_images = np.array((images.shape))
 else:
     gbuf = None
 
+
+
 # Distribute workload so that each MPI process processes image number i, where
-#  i % comm.size == comm.rank. 
+#  i % comm.size == comm.rank.
 #
 # For example if comm.size == 4:
 #   rank 0: 0, 4, 8, ...
@@ -65,7 +67,7 @@ else:
 #
 # Each process reads the image from the HDF file by itself. Sadly, python-tables
 # does not support parallel writes from multiple processes into the same HDF
-# file. So we have to serialize the write operation: Process 0 gathers all 
+# file. So we have to serialize the write operation: Process 0 gathers all
 # whitened images and writes them.
 
 comm.Barrier()                    ### Start stopwatch ###
@@ -74,13 +76,13 @@ t_start = MPI.Wtime()
 for i_base in range(0, image_count, comm.size):
     i = i_base + comm.rank
     #
-    if i  <image_count:
+    if i < image_count:
         img  = images[i]            # load image from HDF file
         img_ = fft2(img)            # 2D FFT
         whi_ = img_ * kernel_       # multiply with kernel in freq.-space
-        whi  = np.abs(ifft2(whi_))  # inverse FFT back into image space 
+        whi  = np.abs(ifft2(whi_))  # inverse FFT back into image space
 
-    # rank 0 gathers whitened images 
+    # rank 0 gathers whitened images
     comm.Gather(
         [whi, MPI.DOUBLE],   # send buffer
         [gbuf, MPI.DOUBLE],  # receive buffer
@@ -91,19 +93,22 @@ for i_base in range(0, image_count, comm.size):
     if comm.rank == 0:
         # Sequentially append each of the images
         for r in range(comm.size):
-            pass
             #h5out.append( {'image': gbuf[r]} )
+            new_images[i + r, :, :] = gbuf[r]
+
+if comm.rank == 0:
+    hdu = pyfits.PrimaryHDU(new_images)
+    hdu.header = origin_header
+    hdu.writeto(out_fname)
 
 comm.Barrier()
 t_diff = MPI.Wtime()-t_start      ### Stop stopwatch ###
 
-h5in.close()
+#h5in.close()
 #h5out.close()
 
 pprint(
-    " Whitened %d images in %5.2f seconds: %4.2f images per second" % 
-        (image_count, t_diff, image_count/t_diff) 
+    " Whitened %d images in %5.2f seconds: %4.2f images per second" %
+        (image_count, t_diff, image_count/t_diff)
 )
 pprint("============================================================================")
-
-
