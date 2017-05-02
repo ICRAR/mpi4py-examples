@@ -11,7 +11,7 @@ How to run:
 from __future__ import division
 
 import sys
-import tables
+import pyfits
 import numpy as np
 from numpy.fft import fft2, ifft2
 from mpi4py import MPI
@@ -50,7 +50,7 @@ kernel_ = np.zeros((height, width))
 if comm.rank == 0:
     gbuf = np.empty( (comm.size, height, width) )
     origin_header = pyfits.open(in_fname)[0].header
-    new_images = np.array((images.shape))
+    new_images = np.zeros((image_count, height, width))
 else:
     gbuf = None
 
@@ -94,6 +94,8 @@ for i_base in range(0, image_count, comm.size):
         # Sequentially append each of the images
         for r in range(comm.size):
             #h5out.append( {'image': gbuf[r]} )
+	    #print("gbuf[r].shape = {0}".format(gbuf[r].shape))
+	    #print("new_images.shape = {0}".format(new_images.shape))
             new_images[i + r, :, :] = gbuf[r]
 
 if comm.rank == 0:
