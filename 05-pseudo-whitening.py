@@ -4,7 +4,7 @@
 
 How to run:
 
-   mpirun -np <NUM> ./pseudo-whitening <INPUT-IMAGES.h5> <OUTPUT-IMAGES.h5>
+   mpirun -np <NUM> ./pseudo-whitening <INPUT-CUBE.fits> <OUTPUT-CUBE.fits>
 
 """
 
@@ -41,7 +41,7 @@ pprint("========================================================================
 pprint(" Running %d parallel MPI processes" % comm.size)
 pprint(" Reading images from '%s'" % in_fname)
 pprint(" Processing %d images of size %d x %d" % (image_count, width, height))
-pprint(" Writing whitened images into '%s'" % out_fname)
+pprint(" Writing transformed images into '%s'" % out_fname)
 
 # Prepare convolution kernel in frequency space
 kernel_ = np.ones((height, width))
@@ -65,10 +65,10 @@ else:
 #   rank 2: 2, 6, 10, ...
 #   rank 3: 3, 7, 11, ...
 #
-# Each process reads the image from the HDF file by itself. Sadly, python-tables
-# does not support parallel writes from multiple processes into the same HDF
+# Each process reads the image from the FITS cube file by itself. Sadly, FITS
+# does not support parallel writes from multiple processes into the same fits
 # file. So we have to serialize the write operation: Process 0 gathers all
-# whitened images and writes them.
+# transformed images and writes them.
 
 comm.Barrier()                    ### Start stopwatch ###
 t_start = MPI.Wtime()
@@ -81,11 +81,9 @@ for i_base in range(0, image_count, comm.size):
         img_ = fft2(img)            # 2D FFT
         #whi_ = img_ * kernel_       # multiply with kernel in freq.-space
         whi_  = img_
-	whi  = ifft2(whi_).astype(np.float)  # inverse FFT back into image space
-	#whi = img.astype(np.float)
-	#print("whi.shape = {0}, type = {1}".format(whi.shape, whi.dtype))
+        whi  = ifft2(whi_).astype(np.float)  # inverse FFT back into image space
 
-    # rank 0 gathers whitened images
+    # rank 0 gathers transformed images
     comm.Gather(
         whi,   # send buffer
         gbuf,  # receive buffer
@@ -96,9 +94,6 @@ for i_base in range(0, image_count, comm.size):
     if comm.rank == 0:
         # Sequentially append each of the images
         for r in range(comm.size):
-            #h5out.append( {'image': gbuf[r]} )
-	    #print("gbuf[r].shape = {0}".format(gbuf[r].shape))
-	    #print("new_images.shape = {0}".format(new_images.shape))
             new_images[i + r, :, :] = gbuf[r]
 
 if comm.rank == 0:
@@ -113,7 +108,7 @@ t_diff = MPI.Wtime()-t_start      ### Stop stopwatch ###
 #h5out.close()
 
 pprint(
-    " Whitened %d images in %5.2f seconds: %4.2f images per second" %
+    " Transformed %d images in %5.2f seconds: %4.2f images per second" %
         (image_count, t_diff, image_count/t_diff)
 )
 pprint("============================================================================")
