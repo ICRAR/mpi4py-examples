@@ -44,7 +44,7 @@ pprint(" Processing %d images of size %d x %d" % (image_count, width, height))
 pprint(" Writing whitened images into '%s'" % out_fname)
 
 # Prepare convolution kernel in frequency space
-kernel_ = np.zeros((height, width))
+kernel_ = np.ones((height, width))
 
 # rank 0 needs buffer space to gather data
 if comm.rank == 0:
@@ -77,15 +77,18 @@ for i_base in range(0, image_count, comm.size):
     i = i_base + comm.rank
     #
     if i < image_count:
-        img  = images[i]            # load image from HDF file
+        img  = np.nan_to_num(images[i])            # load image from HDF file
         img_ = fft2(img)            # 2D FFT
-        whi_ = img_ * kernel_       # multiply with kernel in freq.-space
-        whi  = np.abs(ifft2(whi_))  # inverse FFT back into image space
+        #whi_ = img_ * kernel_       # multiply with kernel in freq.-space
+        whi_  = img_
+	whi  = ifft2(whi_).astype(np.float)  # inverse FFT back into image space
+	#whi = img.astype(np.float)
+	#print("whi.shape = {0}, type = {1}".format(whi.shape, whi.dtype))
 
     # rank 0 gathers whitened images
     comm.Gather(
-        [whi, MPI.DOUBLE],   # send buffer
-        [gbuf, MPI.DOUBLE],  # receive buffer
+        whi,   # send buffer
+        gbuf,  # receive buffer
         root=0               # rank 0 is root the root-porcess
     )
 
