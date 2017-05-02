@@ -27,7 +27,7 @@ out_fname = sys.argv[-1]
 #in_fname = 'L1448_13CO.fits.gz'
 left = 145
 right = 245
-rem = (right - left + 1) % comm.size
+rem = (right - left) % comm.size
 if (rem != 0):
     right += comm.size - rem
 

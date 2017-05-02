@@ -21,10 +21,11 @@ N = 5
 if comm.rank == 0:
     A = np.arange(N, dtype=np.float64)    # rank 0 has proper data
 else:
-    A = np.empty(N, dtype=np.float64)     # all other just an empty array
-
+    A = np.zeros(N, dtype=np.float64)    # rank 0 has proper data
+print("rank {0}: {1}".format(comm.rank, A))
+comm.Barrier()
 # Broadcast A from rank 0 to everybody
-comm.Bcast( [A, MPI.DOUBLE] )
+comm.Bcast( [A, MPI.DOUBLE], root=0)
 
 # Everybody should now have the same...
 print("[%02d] %s" % (comm.rank, A))
