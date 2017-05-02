@@ -79,9 +79,9 @@ for i_base in range(0, image_count, comm.size):
     if i < image_count:
         img  = np.nan_to_num(images[i])            # load image from HDF file
         img_ = fft2(img)            # 2D FFT
-        #whi_ = img_ * kernel_       # multiply with kernel in freq.-space
-        whi_  = img_
-        whi  = ifft2(whi_).astype(np.float)  # inverse FFT back into image space
+        whi_ = img_ * kernel_       # multiply with kernel in freq.-space
+        #whi_  = img_
+        whi  = np.abs(ifft2(whi_))#.astype(np.float)  # inverse FFT back into image space
 
     # rank 0 gathers transformed images
     comm.Gather(
